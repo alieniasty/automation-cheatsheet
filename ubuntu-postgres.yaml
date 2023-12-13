@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc-adrianoitaliano-1
+  namespace: NAMESPACE
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: managed-csi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-deployment-adrianoitaliano
+  namespace: NAMESPACE
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+        postgresql-postgresql-ha-client: 'true'
+    spec:
+      containers:
+      - name: postgres
+        image: ubuntu/postgres
+        resources:
+          limits:
+            cpu: 4
+            memory: 64Gi
+          requests:
+            cpu: 4
+            memory: 32Gi
+        volumeMounts:
+        - name: postgres-storage-adrianoitaliano
+          mountPath: /var/lib/postgresql/data
+        env:
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret-adrianoitaliano
+              key: postgres-password
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+      volumes:
+      - name: postgres-storage-adrianoitaliano
+        persistentVolumeClaim:
+          claimName: postgres-pvc-adrianoitaliano-1
