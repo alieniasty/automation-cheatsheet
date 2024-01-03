@@ -19,7 +19,7 @@ try:
             network = ipaddress.ip_network(subnet)
             if ip_to_check in network:
                 print(f"The IP address {ip_to_check} is within the VNet: {vnet.name}, CIDR: {subnet}")
+            else:
+                print(f"The IP address {ip_to_check} is NOT within the following CIDR blocks: {vnet.address_space.address_prefixes}")    
 except Exception as e:
     print(f"An error occurred: {e}")
-
-print(f"The IP address {ip_to_check} is NOT within the following CIDR blocks: {vnet.address_space.address_prefixes}")    
