@@ -43,6 +43,10 @@ spec:
         app: postgres
         postgresql-postgresql-ha-client: 'true'
     spec:
+      initContainers:
+      - name: install-curl
+        image: ubuntu
+        command: ['sh', '-c', 'apt update && apt upgrade -y && apt install -y curl']
       containers:
       - name: postgres
         image: ubuntu/postgres
