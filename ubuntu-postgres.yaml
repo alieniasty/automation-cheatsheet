@@ -1,21 +1,37 @@
 apiVersion: v1
+kind: Namespace
+metadata:
+  name: maintenance-NAME
+  labels:
+    name: maintenance-NAME
+---
+apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: postgres-pvc-adrianoitaliano-1
-  namespace: NAMESPACE
+  name: postgres-pvc-NAME-1
+  namespace: maintenance-NAME
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 100Gi
+      storage: 60Gi
   storageClassName: managed-csi
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret-NAME
+  namespace: maintenance-NAME
+type: Opaque
+data:
+  postgres-password: cG9zdGdyZXM=
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: postgres-deployment-adrianoitaliano
-  namespace: NAMESPACE
+  name: postgres-deployment-NAME
+  namespace: maintenance-NAME
 spec:
   replicas: 1
   selector:
@@ -32,23 +48,20 @@ spec:
         image: ubuntu/postgres
         resources:
           limits:
-            cpu: 4
-            memory: 64Gi
-          requests:
-            cpu: 4
-            memory: 32Gi
+            cpu: 2
+            memory: 16Gi
         volumeMounts:
-        - name: postgres-storage-adrianoitaliano
+        - name: postgres-storage-NAME
           mountPath: /var/lib/postgresql/data
         env:
         - name: POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: postgres-secret-adrianoitaliano
+              name: postgres-secret-NAME
               key: postgres-password
         - name: PGDATA
           value: /var/lib/postgresql/data/pgdata
       volumes:
-      - name: postgres-storage-adrianoitaliano
+      - name: postgres-storage-NAME
         persistentVolumeClaim:
-          claimName: postgres-pvc-adrianoitaliano-1
+          claimName: postgres-pvc-NAME-1
