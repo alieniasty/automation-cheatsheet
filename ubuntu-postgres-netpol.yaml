@@ -1,0 +1,14 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-maintenance-NAME
+  namespace: TARGET-NAMESPACE
+spec:
+  podSelector: {} 
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: maintenance-NAME
+  policyTypes:
+  - Ingress
