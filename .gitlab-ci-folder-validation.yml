@@ -1,9 +1,10 @@
 variables:
   ALLOWED_FOLDERS: "cluster/dev cluster/stg"
 
-.get_changed_folder: &get_changed_folder |
+.get_target_folders: &get_target_folders |
   if [ ! -z "$TARGET_FOLDER" ]; then
     echo "Using manually specified TARGET_FOLDER=$TARGET_FOLDER"
+    TARGET_FOLDERS=($TARGET_FOLDER)
   else
     # Get the changed folder from git diff
     if [ "$CI_PIPELINE_SOURCE" = "merge_request_event" ]; then
@@ -13,43 +14,49 @@ variables:
     fi
     # Extract unique directories containing changed .tf files
     CHANGED_DIRS=$(echo "$CHANGED_FILES" | xargs -I {} dirname {} 2>/dev/null | sort -u || true)
-    # Get the first changed directory that matches allowed folders
+    # Get all changed directories that match allowed folders
+    TARGET_FOLDERS=()
     for dir in $CHANGED_DIRS; do
       if [[ " $ALLOWED_FOLDERS " =~ " $dir " ]]; then
-        export TARGET_FOLDER=$dir
-        echo "Automatically set TARGET_FOLDER=$TARGET_FOLDER based on changes"
-        break
+        TARGET_FOLDERS+=($dir)
+        echo "Detected changes in folder: $dir"
       fi
     done
     
-    if [ -z "$TARGET_FOLDER" ]; then
+    if [ ${#TARGET_FOLDERS[@]} -eq 0 ]; then
       echo "ERROR: No changes detected in allowed folders: $ALLOWED_FOLDERS"
       echo "Either make changes in an allowed folder or manually specify TARGET_FOLDER"
       exit 1
     fi
+    
+    echo "Will process the following folders: ${TARGET_FOLDERS[*]}"
   fi
 
-.target_folder_validation: &target_folder_validation |
-  if [ ! -d "$TARGET_FOLDER" ]; then
-    echo "ERROR: Directory $TARGET_FOLDER does not exist"
+.validate_folder: &validate_folder |
+  if [ ! -d "$folder" ]; then
+    echo "ERROR: Directory $folder does not exist"
     exit 1
   fi
 
-  plan:
+plan:
   stage: plan
   script:
-    - *get_changed_folder
-    - *target_folder_validation
+    - *get_target_folders
     - |
-      cd $TARGET_FOLDER
-      echo "--------------------------------------------------------------------------------"
-      echo " PLANNING $TARGET_FOLDER"
-      echo "--------------------------------------------------------------------------------"
-      terraform init
-      terraform plan -out=tfplan
+      for folder in "${TARGET_FOLDERS[@]}"; do
+        *validate_folder
+        cd $folder
+        echo "--------------------------------------------------------------------------------"
+        echo " PLANNING $folder"
+        echo "--------------------------------------------------------------------------------"
+        terraform init
+        terraform plan -out=tfplan
+        cd $CI_PROJECT_DIR
+      done
   artifacts:
     paths:
-      - ${TARGET_FOLDER}/tfplan
+      - clusters/csp/*/tfplan
+      - clusters/devops/*/tfplan
     expire_in: 1 week
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
