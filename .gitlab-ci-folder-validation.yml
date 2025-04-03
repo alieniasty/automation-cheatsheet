@@ -1,0 +1,56 @@
+variables:
+  ALLOWED_FOLDERS: "cluster/dev cluster/stg"
+
+.get_changed_folder: &get_changed_folder |
+  if [ ! -z "$TARGET_FOLDER" ]; then
+    echo "Using manually specified TARGET_FOLDER=$TARGET_FOLDER"
+  else
+    # Get the changed folder from git diff
+    if [ "$CI_PIPELINE_SOURCE" = "merge_request_event" ]; then
+      CHANGED_FILES=$(git diff --name-only $CI_MERGE_REQUEST_DIFF_BASE_SHA $CI_COMMIT_SHA | grep '\.tf$' || true)
+    else
+      CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD | grep '\.tf$' || true)
+    fi
+    # Extract unique directories containing changed .tf files
+    CHANGED_DIRS=$(echo "$CHANGED_FILES" | xargs -I {} dirname {} 2>/dev/null | sort -u || true)
+    # Get the first changed directory that matches allowed folders
+    for dir in $CHANGED_DIRS; do
+      if [[ " $ALLOWED_FOLDERS " =~ " $dir " ]]; then
+        export TARGET_FOLDER=$dir
+        echo "Automatically set TARGET_FOLDER=$TARGET_FOLDER based on changes"
+        break
+      fi
+    done
+    
+    if [ -z "$TARGET_FOLDER" ]; then
+      echo "ERROR: No changes detected in allowed folders: $ALLOWED_FOLDERS"
+      echo "Either make changes in an allowed folder or manually specify TARGET_FOLDER"
+      exit 1
+    fi
+  fi
+
+.target_folder_validation: &target_folder_validation |
+  if [ ! -d "$TARGET_FOLDER" ]; then
+    echo "ERROR: Directory $TARGET_FOLDER does not exist"
+    exit 1
+  fi
+
+  plan:
+  stage: plan
+  script:
+    - *get_changed_folder
+    - *target_folder_validation
+    - |
+      cd $TARGET_FOLDER
+      echo "--------------------------------------------------------------------------------"
+      echo " PLANNING $TARGET_FOLDER"
+      echo "--------------------------------------------------------------------------------"
+      terraform init
+      terraform plan -out=tfplan
+  artifacts:
+    paths:
+      - ${TARGET_FOLDER}/tfplan
+    expire_in: 1 week
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
